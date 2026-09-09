@@ -210,7 +210,6 @@ def self_check() -> None:
     assert binary_pow(5, 1) == 5
 
     print("self_check: OK")
-    print("self_check: OK")
 
 
 # ---------------------------------------------------------------------------
