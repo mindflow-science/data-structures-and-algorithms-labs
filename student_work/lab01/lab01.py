@@ -60,9 +60,13 @@ POW_CALLS = 20_000    # вызовов binary_pow на один замер: ин
 
 
 def array_sum(a: list[int]) -> int:
-    """Сумма элементов массива. Ожидаемая сложность: TODO (обосновать в отчёте)."""
-    # TODO: реализовать циклом
-    raise NotImplementedError
+    """Сумма элементов массива. Ожидаемая сложность: O(n) (обосновать в отчёте)."""
+    total = 0
+
+    for number in a:
+        total += number
+
+    return total
 
 
 def array_max(a: list[int]) -> int:
