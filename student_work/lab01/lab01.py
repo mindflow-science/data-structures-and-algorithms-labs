@@ -202,8 +202,14 @@ def self_check() -> None:
         x, n = rng.randint(2, 50), rng.randint(0, 64)
         assert binary_pow(x, n, mod=POW_MOD) == pow(x, n, POW_MOD)
 
-    # TODO: добавить собственные проверки инвариантов и описать их в отчёте
-    # (например: count_equal_pairs на массиве из попарно различных элементов = 0).
+    # Собственные проверки граничных и типовых случаев
+    assert array_sum([-5, 0, 5]) == 0
+    assert array_max([-7]) == -7
+    assert count_equal_pairs([1, 2, 3]) == 0
+    assert count_equal_pairs([1, 2, 1, 2]) == 2
+    assert binary_pow(5, 1) == 5
+
+    print("self_check: OK")
     print("self_check: OK")
 
 
