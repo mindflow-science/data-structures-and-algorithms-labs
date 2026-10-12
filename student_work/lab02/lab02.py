@@ -35,23 +35,27 @@ def factorial(n: int) -> int:
 
 
 def fib_naive(n: int) -> int:
-    """n-е число Фибоначчи наивной рекурсией; увеличивает CALLS["fib_naive"].
-
-    Ожидаемая сложность: TODO (экспоненциальная — показать счётчиком вызовов).
-    """
+    """Фибоначчи наивной рекурсией: экспоненциальное число вызовов."""
+    if n < 0:
+        raise ValueError("n должно быть неотрицательным")
     CALLS["fib_naive"] += 1
-    # TODO: F(0)=0, F(1)=1, далее F(n)=F(n-1)+F(n-2)
-    raise NotImplementedError
+    if n <= 1:
+        return n
+    return fib_naive(n - 1) + fib_naive(n - 2)
 
 
 def fib_memo(n: int, memo: dict[int, int] | None = None) -> int:
-    """n-е число Фибоначчи с мемоизацией; увеличивает CALLS["fib_memo"].
-
-    Ожидаемая сложность: TODO (линейная — сравнить счётчики в отчёте).
-    """
+    """Фибоначчи с мемоизацией: O(n) вызовов при пустом кэше."""
+    if n < 0:
+        raise ValueError("n должно быть неотрицательным")
     CALLS["fib_memo"] += 1
-    # TODO: словарь memo передаётся по рекурсии; повторные подзадачи не пересчитываются
-    raise NotImplementedError
+    if n <= 1:
+        return n
+    if memo is None:
+        memo = {}
+    if n not in memo:
+        memo[n] = fib_memo(n - 1, memo) + fib_memo(n - 2, memo)
+    return memo[n]
 
 
 def hanoi(n: int, src: str = "A", dst: str = "C", aux: str = "B") -> int:
