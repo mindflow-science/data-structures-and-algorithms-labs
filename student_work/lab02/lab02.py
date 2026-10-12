@@ -59,12 +59,12 @@ def fib_memo(n: int, memo: dict[int, int] | None = None) -> int:
 
 
 def hanoi(n: int, src: str = "A", dst: str = "C", aux: str = "B") -> int:
-    """Ханойские башни: вернуть число перемещений n дисков (src -> dst).
-
-    Проверка в self_check: число перемещений равно 2**n - 1.
-    """
-    # TODO: базовое условие n == 0; иначе перенести n-1 на aux, 1 на dst, n-1 на dst
-    raise NotImplementedError
+    """Вернуть число перемещений; O(2**n) вызовов, O(n) глубина стека."""
+    if n < 0:
+        raise ValueError("n должно быть неотрицательным")
+    if n == 0:
+        return 0
+    return hanoi(n - 1, src, aux, dst) + 1 + hanoi(n - 1, aux, dst, src)
 
 
 # ---------------------------------------------------------------------------

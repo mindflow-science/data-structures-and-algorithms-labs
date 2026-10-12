@@ -1,7 +1,7 @@
 import math
 from unittest import TestCase
 
-from lab02 import CALLS, factorial, fib_naive, fib_memo
+from lab02 import CALLS, factorial, fib_naive, fib_memo, hanoi
 
 assert all(factorial(n) == math.factorial(n) for n in range(101))
 TestCase().assertRaises(ValueError, factorial, -1)
@@ -25,3 +25,14 @@ for n, expected in cases.items():
 for fn in (fib_naive, fib_memo):
     TestCase().assertRaises(ValueError, fn, -1)
 print("Фибоначчи: OK")
+
+
+print("\n n | Перемещения | 2**n - 1")
+for n in range(13):
+    result = hanoi(n)
+    expected = 2**n - 1
+    assert result == expected, f"Ошибка при n={n}"
+    print(f"{n:>2} | {result:>11} | {expected:>8}")
+
+TestCase().assertRaises(ValueError, hanoi, -1)
+print("Ханойские башни: OK")
