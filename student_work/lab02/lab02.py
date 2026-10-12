@@ -26,9 +26,12 @@ CALLS = {"fib_naive": 0, "fib_memo": 0}  # счётчики рекурсивны
 
 
 def factorial(n: int) -> int:
-    """Факториал n >= 0 рекурсивно. Ожидаемая сложность: TODO (обосновать в отчёте)."""
-    # TODO: базовое условие + рекурсивный переход
-    raise NotImplementedError
+    """Рекурсивный факториал: O(n) вызовов и O(n) памяти стека."""
+    if n < 0:
+        raise ValueError("n должно быть неотрицательным")
+    if n <= 1:
+        return 1
+    return n * factorial(n - 1)
 
 
 def fib_naive(n: int) -> int:
