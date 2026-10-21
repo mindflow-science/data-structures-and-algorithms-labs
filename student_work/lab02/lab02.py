@@ -120,7 +120,7 @@ class DynamicArray:
 
 
 class Stack:
-    """Стек (LIFO) на базе DynamicArray."""
+    """Стек: последним пришёл - первым вышел (LIFO)."""
 
     def __init__(self) -> None:
         self._data = DynamicArray()
@@ -129,19 +129,26 @@ class Stack:
         return len(self._data)
 
     def push(self, value) -> None:
-        """Положить элемент на вершину. Амортизированная сложность: TODO."""
-        # TODO: делегировать DynamicArray.append
-        raise NotImplementedError
+        """Добавить элемент на вершину. Амортизированно O(1)."""
+        self._data.append(value)
 
     def pop(self):
-        """Снять элемент с вершины; для пустого стека — IndexError."""
-        # TODO: прочитать последний элемент, уменьшить размер
-        raise NotImplementedError
+        """Снять и вернуть верхний элемент. O(1)."""
+        if len(self._data) == 0:
+            raise IndexError("Стек пуст")
+
+        last = len(self._data) - 1
+        value = self._data.get(last)
+        self._data._buffer[last] = None
+        self._data._size -= 1
+        return value
 
     def peek(self):
-        """Вернуть вершину без удаления; для пустого стека — IndexError."""
-        # TODO
-        raise NotImplementedError
+        """Вернуть верхний элемент без удаления. O(1)."""
+        if len(self._data) == 0:
+            raise IndexError("Стек пуст")
+
+        return self._data.get(len(self._data) - 1)
 
 
 class _Node:
@@ -156,11 +163,7 @@ class _Node:
 
 
 class Deque:
-    """Дек (двусторонняя очередь) на базе двусвязного списка.
-
-    Все четыре операции концов должны стоить O(1) — без амортизации,
-    в отличие от вставки в начало динамического массива (см. отчёт).
-    """
+    """Дек на основе двусвязного списка. Все операции концов - O(1)."""
 
     def __init__(self) -> None:
         self._head: _Node | None = None
@@ -171,24 +174,64 @@ class Deque:
         return self._size
 
     def push_front(self, value) -> None:
-        """Добавить элемент в начало. Сложность: TODO."""
-        # TODO: создать узел, перевязать ссылки head (учесть пустой дек)
-        raise NotImplementedError
+        """Добавить элемент в начало."""
+        node = _Node(value)
+        node.next = self._head
+
+        if self._head is None:
+            self._tail = node
+        else:
+            self._head.prev = node
+
+        self._head = node
+        self._size += 1
 
     def push_back(self, value) -> None:
-        """Добавить элемент в конец. Сложность: TODO."""
-        # TODO: симметрично push_front для tail
-        raise NotImplementedError
+        """Добавить элемент в конец."""
+        node = _Node(value)
+        node.prev = self._tail
+
+        if self._tail is None:
+            self._head = node
+        else:
+            self._tail.next = node
+
+        self._tail = node
+        self._size += 1
 
     def pop_front(self):
-        """Извлечь элемент из начала; для пустого дека — IndexError."""
-        # TODO: учесть переход к пустому деку (tail тоже обнуляется)
-        raise NotImplementedError
+        """Извлечь элемент из начала; для пустого дека - IndexError."""
+        if self._head is None:
+            raise IndexError("Дек пуст")
+
+        node = self._head
+        self._head = node.next
+
+        if self._head is None:
+            self._tail = None
+        else:
+            self._head.prev = None
+
+        node.next = None
+        self._size -= 1
+        return node.value
 
     def pop_back(self):
-        """Извлечь элемент из конца; для пустого дека — IndexError."""
-        # TODO
-        raise NotImplementedError
+        """Извлечь элемент из конца; для пустого дека - IndexError."""
+        if self._tail is None:
+            raise IndexError("Дек пуст")
+
+        node = self._tail
+        self._tail = node.prev
+
+        if self._tail is None:
+            self._head = None
+        else:
+            self._tail.next = None
+
+        node.prev = None
+        self._size -= 1
+        return node.value
 
 
 # ---------------------------------------------------------------------------
