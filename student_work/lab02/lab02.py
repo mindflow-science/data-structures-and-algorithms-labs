@@ -73,19 +73,14 @@ def hanoi(n: int, src: str = "A", dst: str = "C", aux: str = "B") -> int:
 
 
 class DynamicArray:
-    """Динамический массив поверх «сырого» буфера фиксированной ёмкости.
-
-    Инвариант: 0 <= self._size <= self._capacity.
-    Буфер имитируем списком фиксированной длины, заполненным None;
-    использовать list.append/insert для буфера запрещено.
-    """
+    """Динамический массив с удвоением ёмкости."""
 
     INITIAL_CAPACITY = 4
 
     def __init__(self) -> None:
-        self._capacity = self.INITIAL_CAPACITY
         self._size = 0
-        self._buffer: list = [None] * self._capacity  # «сырая» память
+        self._capacity = self.INITIAL_CAPACITY
+        self._buffer: list = [None] * self._capacity
 
     def __len__(self) -> int:
         return self._size
@@ -95,27 +90,28 @@ class DynamicArray:
         return self._capacity
 
     def _grow(self) -> None:
-        """Увеличить ёмкость в 2 раза и скопировать элементы в новый буфер."""
-        # TODO: выделить новый буфер размера 2 * capacity, перенести _size элементов
-        raise NotImplementedError
+        new_capacity = self._capacity * 2
+        new_buffer = [None] * new_capacity
+        for i in range(self._size):
+            new_buffer[i] = self._buffer[i]
+        self._buffer = new_buffer
+        self._capacity = new_capacity
 
     def append(self, value) -> None:
-        """Добавить элемент в конец; при size == capacity сначала вызвать _grow.
-
-        Амортизированная сложность: TODO (обосновать методом учёта в отчёте).
-        """
-        # TODO: рост при необходимости, запись в ячейку _buffer[_size], инкремент _size
-        raise NotImplementedError
+        if self._size == self._capacity:
+            self._grow()
+        self._buffer[self._size] = value
+        self._size += 1
 
     def get(self, index: int):
-        """Вернуть элемент по индексу 0 <= index < size; иначе IndexError."""
-        # TODO: проверка границ + чтение из буфера
-        raise NotImplementedError
+        if index < 0 or index >= self._size:
+            raise IndexError("Индекс вне границ массива")
+        return self._buffer[index]
 
     def set(self, index: int, value) -> None:
-        """Записать элемент по индексу 0 <= index < size; иначе IndexError."""
-        # TODO: проверка границ + запись в буфер
-        raise NotImplementedError
+        if index < 0 or index >= self._size:
+            raise IndexError("Индекс вне границ массива")
+        self._buffer[index] = value
 
 
 # ---------------------------------------------------------------------------
@@ -314,6 +310,115 @@ def run_benchmarks(seed: int) -> None:
     # TODO: построить график t/n от n для append и включить его в отчёт;
     # TODO: провести амортизированный анализ push_back методом учёта (в отчёте).
 
+def benchmark_append(seed: int) -> None:
+    """Измерить время append и сохранить результаты и график."""
+    import csv
+    import json
+    import platform
+    from pathlib import Path
+
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    sizes = [1_000, 3_000, 10_000, 30_000, 100_000, 300_000]
+    repeats = 5
+
+    rng = random.Random(seed)
+    data = [rng.randint(-1_000_000, 1_000_000) for _ in range(max(sizes))]
+
+    cpu = "Не определён"
+    for line in Path("/proc/cpuinfo").read_text(encoding="utf-8").splitlines():
+        if line.startswith("model name"):
+            cpu = line.split(":", 1)[1].strip()
+            break
+
+    print(f"\nCPU: {cpu}")
+    print(f"Python: {platform.python_version()}")
+    print(f"Seed: {seed}; прогрев: 1; повторов: {repeats}; обработка: медиана")
+    print("\n       n | Ёмкость | Медиана серии, с | Среднее на append, мкс")
+
+    rows = []
+    costs_us = []
+
+    for n in sizes:
+        values = data[:n]
+
+        arr = DynamicArray()
+        for value in values:
+            arr.append(value)
+
+        times = []
+
+        for _ in range(repeats):
+            arr = DynamicArray()
+
+            t0 = time.perf_counter()
+            for value in values:
+                arr.append(value)
+            elapsed = time.perf_counter() - t0
+
+            times.append(elapsed)
+
+        median_s = statistics.median(times)
+        mean_us = median_s / n * 1_000_000
+
+        rows.append([n, arr.capacity, *times, median_s, mean_us])
+        costs_us.append(mean_us)
+
+        print(f"{n:>8} | {arr.capacity:>7} | {median_s:>16.6f} | {mean_us:>21.6f}")
+
+    output_dir = Path(__file__).resolve().parent
+
+    csv_path = output_dir / "append_results.csv"
+    with csv_path.open("w", newline="", encoding="utf-8") as file:
+        writer = csv.writer(file)
+        writer.writerow([
+            "n", "capacity",
+            *[f"repeat_{i}_s" for i in range(1, repeats + 1)],
+            "median_total_s", "mean_append_us",
+        ])
+        writer.writerows(rows)
+
+    metadata = {
+        "cpu": cpu,
+        "python": platform.python_version(),
+        "platform": platform.platform(),
+        "seed": seed,
+        "sizes": sizes,
+        "warmups_per_size": 1,
+        "repeats_per_size": repeats,
+        "timer": "time.perf_counter",
+        "processing": "median_total_s / n * 1e6",
+        "fresh_array_each_run": True,
+        "data_generated_before_timing": True,
+        "total_time_unit": "seconds",
+        "append_time_unit": "microseconds",
+    }
+
+    metadata_path = output_dir / "append_environment.json"
+    metadata_path.write_text(
+        json.dumps(metadata, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+    # Строим график с логарифмическими осями.
+    fig, ax = plt.subplots(figsize=(8, 5))
+    ax.loglog(sizes, costs_us, "o-", label="Медиана времени серии / n")
+    ax.set_xlabel("Количество добавлений n (логарифмическая шкала)")
+    ax.set_ylabel("Среднее время append, мкс (логарифмическая шкала)")
+    ax.set_title(f"Средняя стоимость append, seed = {seed}")
+    ax.grid(True, which="both", alpha=0.3)
+    ax.legend()
+    fig.tight_layout()
+
+    graph_path = output_dir / "append_benchmark.png"
+    fig.savefig(graph_path, dpi=200)
+    plt.close(fig)
+
+    print("\nСохранены файлы:")
+    for path in (csv_path, metadata_path, graph_path):
+        print(path)
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
