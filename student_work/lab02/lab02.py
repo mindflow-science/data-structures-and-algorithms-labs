@@ -304,7 +304,7 @@ REPEATS = 5
 
 def bench(fn, *args) -> float:
     """Медиана времени выполнения fn(*args) по REPEATS запускам, с прогревом."""
-    fn(*args)  # прогрев — не учитывается
+    fn(*args)  # прогрев - не учитывается
     times = []
     for _ in range(REPEATS):
         t0 = time.perf_counter()
@@ -321,37 +321,150 @@ def appends_dynamic_array(n: int) -> None:
 
 
 def inserts_front_list(n: int) -> None:
-    """n вставок в начало встроенного list — ожидаемо O(n) на операцию."""
+    """n вставок в начало встроенного list - ожидаемо O(n) на операцию."""
     a: list[int] = []
     for i in range(n):
         a.insert(0, i)
 
 
 def inserts_front_deque(n: int) -> None:
-    """n вставок в начало collections.deque — ожидаемо O(1) на операцию."""
+    """n вставок в начало collections.deque - ожидаемо O(1) на операцию."""
     d: collections.deque = collections.deque()
     for i in range(n):
         d.appendleft(i)
 
 
 def run_benchmarks(seed: int) -> None:
-    """Средняя стоимость append и сравнение вставки в начало list/deque."""
+    """Сравнить вставку в начало list, collections.deque и своего Deque."""
+    import csv
+    import json
+    import platform
+    from pathlib import Path
+
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    def fill_list(container, values):
+        for value in values:
+            container.insert(0, value)
+
+    def fill_builtin_deque(container, values):
+        for value in values:
+            container.appendleft(value)
+
+    def fill_own_deque(container, values):
+        for value in values:
+            container.push_front(value)
+
+    sizes = [300, 1_000, 3_000, 10_000, 30_000, 100_000]
+    repeats = 5
+
+    # Одинаковые данные для всех трёх структур, созданные заранее
     rng = random.Random(seed)
-    _ = rng.random()  # данные варианта фиксируются seed (см. reproducibility.md)
-    print("\nСредняя стоимость append (DynamicArray), демонстрация амортизированной O(1):")
-    for n in SIZES:
-        t = bench(appends_dynamic_array, n)
-        print(f"  n={n:>7}  всего t={t:.6f} c  на операцию t/n={t / n:.3e} c")
-    print("\nВставка в начало: list.insert(0, x) против deque.appendleft:")
-    for n in SIZES:
-        if n > 30_000:
-            continue  # вставка в начало list квадратична по суммарному времени
-        t_list = bench(inserts_front_list, n)
-        t_deque = bench(inserts_front_deque, n)
-        print(f"  n={n:>7}  list={t_list:.6f} c  deque={t_deque:.6f} c")
-    # TODO: снять аналогичные замеры для push_front своего Deque;
-    # TODO: построить график t/n от n для append и включить его в отчёт;
-    # TODO: провести амортизированный анализ push_back методом учёта (в отчёте).
+    data = [rng.randint(-1_000_000, 1_000_000) for _ in range(max(sizes))]
+
+    cases = [
+        ("list", list, fill_list),
+        ("collections.deque", collections.deque, fill_builtin_deque),
+        ("Свой Deque", Deque, fill_own_deque),
+    ]
+
+    cpu = "Не определён"
+    for line in Path("/proc/cpuinfo").read_text(encoding="utf-8").splitlines():
+        if line.startswith("model name"):
+            cpu = line.split(":", 1)[1].strip()
+            break
+
+    print(f"\nCPU: {cpu}; Python: {platform.python_version()}")
+    print(f"Seed: {seed}; прогрев: 1; повторов: {repeats}; обработка: медиана")
+    print("\nСтруктура          |        n | Медиана серии, с | На вставку, мкс")
+
+    rows = []
+    costs = {name: [] for name, _, _ in cases}
+
+    for n in sizes:
+        values = data[:n]
+
+        for name, factory, fill in cases:
+            # Один прогрев на свежей структуре
+            container = factory()
+            fill(container, values)
+
+            times = []
+
+            for _ in range(repeats):
+                # Создание структуры выполняется до включения таймера
+                container = factory()
+
+                t0 = time.perf_counter()
+                fill(container, values)
+                elapsed = time.perf_counter() - t0
+
+                times.append(elapsed)
+
+            median_s = statistics.median(times)
+            mean_us = median_s / n * 1_000_000
+
+            rows.append([name, n, *times, median_s, mean_us])
+            costs[name].append(mean_us)
+
+            print(f"{name:<18} | {n:>8} | {median_s:>16.6f} | {mean_us:>14.6f}")
+
+    output_dir = Path(__file__).resolve().parent
+
+    csv_path = output_dir / "front_results.csv"
+    with csv_path.open("w", newline="", encoding="utf-8") as file:
+        writer = csv.writer(file)
+        writer.writerow([
+            "structure", "n",
+            *[f"repeat_{i}_s" for i in range(1, repeats + 1)],
+            "median_total_s", "mean_insert_us",
+        ])
+        writer.writerows(rows)
+
+    metadata = {
+        "cpu": cpu,
+        "python": platform.python_version(),
+        "platform": platform.platform(),
+        "seed": seed,
+        "sizes": sizes,
+        "operation": "insert_front",
+        "warmups_per_size_and_structure": 1,
+        "repeats_per_size_and_structure": repeats,
+        "timer": "time.perf_counter",
+        "processing": "median_total_s / n * 1e6",
+        "fresh_structure_each_run": True,
+        "data_generated_before_timing": True,
+        "total_time_unit": "seconds",
+        "insert_time_unit": "microseconds",
+    }
+
+    metadata_path = output_dir / "front_environment.json"
+    metadata_path.write_text(
+        json.dumps(metadata, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+    fig, ax = plt.subplots(figsize=(8, 5))
+
+    for name, _, _ in cases:
+        ax.loglog(sizes, costs[name], "o-", label=name)
+
+    ax.set_xlabel("Количество вставок n (логарифмическая шкала)")
+    ax.set_ylabel("Среднее время вставки, мкс (логарифмическая шкала)")
+    ax.set_title(f"Сравнение вставки в начало, seed = {seed}")
+    ax.grid(True, which="both", alpha=0.3)
+    ax.legend()
+    fig.tight_layout()
+
+    graph_path = output_dir / "front_benchmark.png"
+    fig.savefig(graph_path, dpi=200)
+    plt.close(fig)
+
+    print("\nСохранены файлы:")
+    for path in (csv_path, metadata_path, graph_path):
+        print(path)
 
 def benchmark_append(seed: int) -> None:
     """Измерить время append и сохранить результаты и график."""
@@ -445,7 +558,7 @@ def benchmark_append(seed: int) -> None:
         encoding="utf-8",
     )
 
-    # Строим график с логарифмическими осями.
+    #Строим график с логарифмическими осями.
     fig, ax = plt.subplots(figsize=(8, 5))
     ax.loglog(sizes, costs_us, "o-", label="Медиана времени серии / n")
     ax.set_xlabel("Количество добавлений n (логарифмическая шкала)")

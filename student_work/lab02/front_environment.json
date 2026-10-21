@@ -1,0 +1,23 @@
+{
+  "cpu": "Intel(R) Core(TM) i7-14650HX",
+  "python": "3.13.5",
+  "platform": "Linux-6.12.111+deb13-amd64-x86_64-with-glibc2.41",
+  "seed": 46,
+  "sizes": [
+    300,
+    1000,
+    3000,
+    10000,
+    30000,
+    100000
+  ],
+  "operation": "insert_front",
+  "warmups_per_size_and_structure": 1,
+  "repeats_per_size_and_structure": 5,
+  "timer": "time.perf_counter",
+  "processing": "median_total_s / n * 1e6",
+  "fresh_structure_each_run": true,
+  "data_generated_before_timing": true,
+  "total_time_unit": "seconds",
+  "insert_time_unit": "microseconds"
+}
