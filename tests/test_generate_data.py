@@ -4,18 +4,23 @@
 
 Функции генератора вызываются напрямую с уменьшенными объёмами и пишут во
 временный каталог pytest (tmp_path), поэтому весь набор тестов выполняется
-за секунды. Проверяются три свойства, критичных для дисциплины:
+за секунды. Проверяются свойства, критичные для дисциплины:
 
 1) детерминированность — одинаковый вариант даёт побайтно одинаковые файлы;
 2) корректность logs_answers.json — внедрённые аномалии действительно
    присутствуют в журнале на указанных позициях (самопроверка ДЗ 3);
 3) целостность embeddings_ground_truth.json — все указанные id существуют
-   в CSV-файлах (самопроверка ДЗ 4).
+   в CSV-файлах (самопроверка ДЗ 4);
+4) операции ЛР 2 опустошают структуры и пересекают границы роста ёмкости,
+   а заготовка ЛР 2 читает их и без решения завершается отчётом self_check.
 """
 from __future__ import annotations
 
+import collections
 import hashlib
 import json
+import os
+import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -31,6 +36,10 @@ SEED = gd.BASE_SEED + 7  # вариант 7 — произвольный, важ
 SMALL_LOGS = dict(n_events=1_500, n_bursts=2, burst_size=25, n_signatures=2)
 SMALL_EMB = dict(n_resumes=60, n_vacancies=60, dim=12, k=5, noise=0.5)
 SMALL_TEXTS = dict(length=4_000, n_patterns=6)
+SMALL_OPS = dict(n_ops=20_000, max_size=300)
+
+LAB02_STARTER = (REPO_ROOT / "M1-intro-and-basic-structures" / "attachments"
+                 / "lab02-recursion-structures-starter.py")
 
 
 def _sha256_by_name(paths: list[Path]) -> dict[str, str]:
@@ -58,6 +67,7 @@ def test_same_variant_gives_identical_bytes(tmp_path: Path) -> None:
         out_dir.mkdir()
         paths = gd.generate_logs(out_dir, SEED, **SMALL_LOGS)
         paths += gd.generate_embeddings(out_dir, SEED, **SMALL_EMB)
+        paths += gd.generate_ops(out_dir, SEED, **SMALL_OPS)
         hashes.append(_sha256_by_name(paths))
     assert hashes[0] == hashes[1]
 
@@ -155,3 +165,64 @@ def test_patterns_occur_in_texts(tmp_path: Path) -> None:
         name, pattern = line.split("\t")
         assert 3 <= len(pattern) <= 30
         assert pattern in texts[name]
+
+
+def test_ops_exercise_linear_structures(tmp_path: Path) -> None:
+    """Операции ЛР 2 корректны по формату, опустошают структуры и переходят границы ёмкости."""
+    gd.generate_ops(tmp_path, SEED, **SMALL_OPS)
+    stack: list[int] = []
+    deque: collections.deque[int] = collections.deque()
+    references = {
+        "ops_stack.txt": (gd.STACK_OPS, stack,
+                          {"push": stack.append, "pop": stack.pop, "peek": lambda: stack[-1]}),
+        "ops_deque.txt": (gd.DEQUE_OPS, deque,
+                          {"push_front": deque.appendleft, "push_back": deque.append,
+                           "pop_front": deque.popleft, "pop_back": deque.pop}),
+    }
+    for name, (arity, ref, methods) in references.items():
+        lines = (tmp_path / name).read_text(encoding="utf-8").splitlines()
+        assert len(lines) == SMALL_OPS["n_ops"]
+        emptied = raised = max_size = 0
+        for line in lines:
+            op, *args = line.split()
+            assert op in arity and len(args) == arity[op], f"{name}: строка {line!r}"
+            before = len(ref)
+            try:
+                methods[op](*map(int, args))
+            except IndexError:
+                raised += 1
+            emptied += before > 0 and not ref
+            max_size = max(max_size, len(ref))
+        assert {line.split()[0] for line in lines} == set(arity)
+        assert emptied >= 10, f"{name}: структура опустошается лишь {emptied} раз"
+        assert raised > 0, f"{name}: нет операций над пустой структурой"
+        assert max_size > 64, f"{name}: размер не превышает {max_size}"
+
+    text = (tmp_path / "ops_append_sizes.txt").read_text(encoding="utf-8")
+    sizes = [int(line) for line in text.split()]
+    lo, hi = gd.APPEND_SIZE_RANGE
+    assert sizes == sorted(set(sizes)) and lo <= sizes[0] and sizes[-1] <= hi
+    assert any(n & (n - 1) == 0 and n + 1 in sizes for n in sizes), "нет пары 2**k, 2**k + 1"
+
+
+def test_lab02_starter_reads_variant_ops(tmp_path: Path) -> None:
+    """Заготовка ЛР 2 читает ops варианта и сверяет вариант; без решения — отчёт, не зависание."""
+    created = gd.generate_ops(tmp_path, SEED, **SMALL_OPS)
+    gd.write_manifest(tmp_path, 7, SEED, ["ops"], created)
+    env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
+
+    def run(variant: int) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            [sys.executable, "-O", str(LAB02_STARTER), "--variant", str(variant),
+             "--data", str(tmp_path), "--out", str(tmp_path)],
+            capture_output=True, encoding="utf-8", env=env, timeout=120)
+
+    result = run(7)
+    assert result.returncode == 1
+    assert "Данные варианта 7" in result.stdout
+    assert result.stdout.count("не реализовано") == 5, result.stdout
+    assert "Traceback" not in result.stdout + result.stderr
+
+    result = run(8)
+    assert result.returncode == 1
+    assert "сгенерированы для варианта 7" in result.stderr

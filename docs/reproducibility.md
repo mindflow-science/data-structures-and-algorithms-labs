@@ -27,7 +27,7 @@ python scripts/check_links.py            # ссылки, якоря, струк�
 python scripts/check_links.py --external # + внешние ссылки (требуется интернет)
 ```
 
-Скрипт проверяет существование файлов и якорей во всех `*.md`, пары `kim-NN`/`rubric-NN`, обязательные разделы КИМ, шкалу рубрик (10/8/6/4/0–3) и согласованность БРС (потолок 100 баллов, порог автомата 70). Та же проверка автоматически выполняется в CI на каждый push и pull request (`.github/workflows/check.yml`).
+Скрипт проверяет существование файлов и якорей во всех `*.md`, пары `kim-NN`/`rubric-NN`, обязательные разделы КИМ, шкалу рубрик (10/8/6/4/0–3) и согласованность БРС (потолок 100 баллов, правила экзаменационной оценки: «отлично» от 84 при экзамене не ниже 8, «хорошо» от 70 или автомат при 60 баллах семестра, «удовлетворительно» от 55, нет следов прежней формы аттестации). Та же проверка автоматически выполняется в CI на каждый push и pull request (`.github/workflows/check.yml`).
 
 ## 2. Генерация данных
 
@@ -35,6 +35,7 @@ python scripts/check_links.py --external # + внешние ссылки (тре
 
 ```bash
 python scripts/generate_data.py --variant N          # все наборы для варианта N
+python scripts/generate_data.py --variant N --only ops         # операции над стеком и деком (ЛР 2)
 python scripts/generate_data.py --variant N --only logs        # журнал событий (ДЗ 3)
 python scripts/generate_data.py --variant N --only embeddings  # псевдо-эмбеддинги (ДЗ 4)
 ```
