@@ -78,16 +78,25 @@ def counting_sort(a: list, key_max: int, key=lambda x: x) -> list:
     return result
 
 
-def radix_sort_lsd(a: list[int]) -> list[int]:
-    """RadixSort LSD по десятичным разрядам, неотрицательные целые.
+def counting_sort_digit(a: list, exp: int, key=lambda x: x) -> list:
+    """Устойчивый проход по одной десятичной цифре."""
+    return counting_sort(a, key_max=9, key=lambda item: (key(item) // exp) % 10)
 
-    Поверх устойчивой поразрядной counting-сортировки: от младшего разряда
-    к старшему. Ожидаемая сложность: TODO — выразить через n и число разрядов d.
-    """
-    # TODO: цикл по разрядам (exp = 1, 10, 100, ...) с устойчивой сортировкой
-    # по цифре (a[i] // exp) % 10; объяснить, почему без устойчивости
-    # внутреннего прохода алгоритм неверен
-    raise NotImplementedError
+
+def radix_sort_lsd(a: list, key=lambda x: x) -> list:
+    """RadixSort LSD: время O(d(n + 10)), память O(n + 10)."""
+    if not a:
+        return []
+    if min(key(item) for item in a) < 0:
+        raise ValueError("RadixSort принимает неотрицательные целые ключи")
+
+    result = list(a)
+    maximum = max(key(item) for item in result)
+    exp = 1
+    while exp <= maximum:
+        result = counting_sort_digit(result, exp, key=key)
+        exp *= 10
+    return result
 
 
 def sift_down(a: list[int], i: int, n: int) -> None:
