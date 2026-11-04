@@ -100,19 +100,35 @@ def radix_sort_lsd(a: list, key=lambda x: x) -> list:
 
 
 def sift_down(a: list[int], i: int, n: int) -> None:
-    """Просейка вниз элемента i в куче a[0:n] (max-heap), на месте."""
-    # TODO: спуск с обменом с большим из потомков, пока нарушено свойство кучи
-    raise NotImplementedError
+    """Просейка вниз в max-куче: рассматриваются индексы меньше n."""
+    while True:
+        largest = i
+        left = 2 * i + 1
+        right = 2 * i + 2
+
+        if left < n and a[left] > a[largest]:
+            largest = left
+        if right < n and a[right] > a[largest]:
+            largest = right
+        if largest == i:
+            return
+
+        a[i], a[largest] = a[largest], a[i]
+        i = largest
+
+
+def build_heap(a: list[int]) -> None:
+    """Построение max-кучи снизу вверх за O(n)."""
+    for i in range(len(a) // 2 - 1, -1, -1):
+        sift_down(a, i, len(a))
 
 
 def heap_sort(a: list[int]) -> None:
-    """HeapSort in-place: сортирует список a на месте, без вспомогательного массива.
-
-    Схема: построение max-кучи просейками вниз (снизу вверх, O(n)),
-    затем обмен вершины с последним элементом и просейка. Сложность: TODO.
-    """
-    # TODO: построение кучи + фаза извлечения максимумов
-    raise NotImplementedError
+    """Сортировка на месте: худшее время O(n log n), память O(1)."""
+    build_heap(a)
+    for end in range(len(a) - 1, 0, -1):
+        a[0], a[end] = a[end], a[0]
+        sift_down(a, 0, end)
 
 
 def quick_sort(a: list[int]) -> list[int]:
