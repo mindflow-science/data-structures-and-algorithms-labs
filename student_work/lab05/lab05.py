@@ -112,26 +112,66 @@ class BST:
 
 
     def in_order(self) -> list[int]:
-        """Симметричный обход (лево — узел — право): рекурсивно."""
-        # TODO: для корректного BST результат — возрастающая последовательность
-        raise NotImplementedError
+        """Симметричный обход: левое поддерево, узел, правое поддерево."""
+        result: list[int] = []
+
+        def visit(node: Node | None) -> None:
+            if node is None:
+                return
+            visit(node.left)
+            result.append(node.key)
+            visit(node.right)
+
+        visit(self.root)
+        return result
 
     def pre_order(self) -> list[int]:
-        """Прямой обход (узел — лево — право): рекурсивно."""
-        # TODO
-        raise NotImplementedError
+        """Прямой обход: узел, левое поддерево, правое поддерево."""
+        result: list[int] = []
+
+        def visit(node: Node | None) -> None:
+            if node is None:
+                return
+            result.append(node.key)
+            visit(node.left)
+            visit(node.right)
+
+        visit(self.root)
+        return result
 
     def post_order(self) -> list[int]:
-        """Обратный обход (лево — право — узел): рекурсивно."""
-        # TODO
-        raise NotImplementedError
+        """Обратный обход: левое поддерево, правое поддерево, узел."""
+        result: list[int] = []
+
+        def visit(node: Node | None) -> None:
+            if node is None:
+                return
+            visit(node.left)
+            visit(node.right)
+            result.append(node.key)
+
+        visit(self.root)
+        return result
 
     def level_order(self) -> list[int]:
-        """Обход в ширину по уровням: итеративно через очередь (deque)."""
-        # TODO: использовать collections.deque, без рекурсии
-        raise NotImplementedError
+        """Обход по уровням с помощью очереди."""
+        result: list[int] = []
+        if self.root is None:
+            return result
+
+        queue = deque([self.root])
+        while queue:
+            node = queue.popleft()
+            result.append(node.key)
+            if node.left is not None:
+                queue.append(node.left)
+            if node.right is not None:
+                queue.append(node.right)
+
+        return result
 
     # -- Характеристики дерева ----------------------------------------------
+
 
     def height(self) -> int:
         """Высота дерева: число рёбер на самом длинном пути от корня.
