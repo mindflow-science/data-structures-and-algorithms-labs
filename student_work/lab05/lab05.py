@@ -12,12 +12,18 @@
 from __future__ import annotations
 
 import argparse
+import csv
+import math
+import platform
 import random
 import statistics
 import sys
 import time
 import traceback
 from collections import deque
+from pathlib import Path
+
+import matplotlib.pyplot as plt
 
 # ---------------------------------------------------------------------------
 # 1. Бинарное дерево поиска (реализуется вручную, без сторонних библиотек)
@@ -511,30 +517,87 @@ def bench(fn) -> float:
 
 
 def run_benchmarks(seed: int) -> None:
-    """Сравнение времени QUERIES поисков в BST и в списке (оператор in)."""
+    """Измерить поиск, сохранить таблицу и два графика."""
     rng = random.Random(seed)
-    print(f"{'n':>8} {'h(BST)':>7} {'t_bst, c':>10} {'t_list, c':>10}")
+    rows = []
+
+    cpu = "не определен"
+    for line in Path("/proc/cpuinfo").read_text(encoding="utf-8").splitlines():
+        if line.startswith("model name"):
+            cpu = line.split(":", 1)[1].strip()
+            break
+
+    print(f"CPU: {cpu}")
+    print(f"Python: {platform.python_version()}")
+    print(f"seed = {seed}; прогрев = 1; повторов = {REPEATS}")
+    print(f"Время в секундах для {QUERIES} поисков.")
+    print(f"{'n':>8} {'h(BST)':>7} {'t_bst, с':>12} {'t_list, с':>12}")
+
     for n in SIZES:
-        keys = rng.sample(range(10 * n), n)   # случайные ключи без повторов
+        keys = rng.sample(range(10 * n), n)
         queries = [rng.randint(0, 10 * n) for _ in range(QUERIES)]
-        tree = BST()
-        for k in keys:
-            tree.insert(k)
+        tree = build(keys)
+
+        expect(tree.in_order() == sorted(keys), f"Неверное дерево при n = {n}")
+        reference = set(keys)
+        for query in queries:
+            expect_search(tree, query, query in reference, f"n = {n}")
 
         def search_bst() -> None:
-            for q in queries:
-                tree.search(q)
+            for query in queries:
+                tree.search(query)
 
         def search_list() -> None:
-            for q in queries:
-                q in keys  # линейный поиск для сравнения
+            for query in queries:
+                query in keys
 
-        print(f"{n:>8} {tree.height():>7} "
-              f"{bench(search_bst):>10.6f} {bench(search_list):>10.6f}")
-    # TODO: оформить результаты таблицей/графиком в отчёте;
-    # TODO: сопоставить рост t_bst с высотой дерева, а t_list — с n;
-    # TODO: в отчёте объяснить деградацию BST на упорядоченных ключах
-    #       и гарантию высоты AVL-дерева (не более 1,44*log2(n)) — мостик к ДЗ 2.
+        height = tree.height()
+        bst_time = bench(search_bst)
+        list_time = bench(search_list)
+        rows.append((n, height, bst_time, list_time))
+        print(f"{n:>8} {height:>7} {bst_time:>12.6f} {list_time:>12.6f}")
+
+    output_dir = Path(__file__).resolve().parent
+    with (output_dir / "search_results.csv").open(
+        "w", newline="", encoding="utf-8"
+    ) as file:
+        writer = csv.writer(file)
+        writer.writerow(["n", "height", "t_bst_s", "t_list_s"])
+        writer.writerows(rows)
+
+    sizes = [row[0] for row in rows]
+    bst_times = [row[2] for row in rows]
+    list_times = [row[3] for row in rows]
+
+    fig, ax = plt.subplots(figsize=(8, 5))
+    ax.loglog(sizes, bst_times, "o-", label="BST")
+    ax.loglog(sizes, list_times, "s-", label="Список")
+    ax.set_xlabel("Количество ключей n")
+    ax.set_ylabel(f"Время {QUERIES} поисков, с")
+    ax.set_title("Сравнение поиска в BST и списке")
+    ax.grid(True, which="both", alpha=0.3)
+    ax.legend()
+    fig.tight_layout()
+    fig.savefig(output_dir / "search_comparison.png", dpi=180)
+    plt.close(fig)
+
+    fig, ax = plt.subplots(figsize=(8, 5))
+    ax.plot([math.log2(n) for n in sizes], bst_times, "o-")
+    ax.set_xlabel("log₂(n)")
+    ax.set_ylabel(f"Время {QUERIES} поисков в BST, с")
+    ax.set_title("Время поиска в BST в зависимости от log₂(n)")
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(output_dir / "bst_search_log_n.png", dpi=180)
+    plt.close(fig)
+
+    print("Сохранены файлы:")
+    for name in (
+        "search_results.csv",
+        "search_comparison.png",
+        "bst_search_log_n.png",
+    ):
+        print(f"  {output_dir / name}")
 
 
 def main() -> None:
