@@ -366,39 +366,92 @@ def check_delete_two_children() -> None:
                f"предшественником — {by_predecessor}")
 
 
+def check_bst_bounds(tree: BST, where: str) -> None:
+    """Проверить допустимый диапазон ключей каждого узла."""
+
+    def visit(node: Node | None, lower: int | None, upper: int | None) -> None:
+        if node is None:
+            return
+        expect(
+            lower is None or lower < node.key,
+            f"{where}: ключ {node.key} нарушает нижнюю границу {lower}",
+        )
+        expect(
+            upper is None or node.key < upper,
+            f"{where}: ключ {node.key} нарушает верхнюю границу {upper}",
+        )
+        visit(node.left, lower, node.key)
+        visit(node.right, node.key, upper)
+
+    visit(tree.root, None, None)
+
+
 def check_against_reference() -> None:
-    """Случайные команды insert/delete: после каждой in_order() совпадает с sorted(эталона)."""
-    rng = random.Random(0)
-    for run in range(1, 101):
+    """Сверить случайные команды BST с set и проверить инвариант."""
+    seed = 46
+    runs = 300
+    rng = random.Random(seed)
+    counts = {"insert": 0, "search": 0, "delete": 0}
+
+    for run in range(1, runs + 1):
         tree = BST()
         etalon: set[int] = set()
+
         for step in range(1, rng.randint(1, 80) + 1):
-            k = rng.randint(-30, 30)
-            if rng.random() < 0.6:
-                tree.insert(k)
-                etalon.add(k)
-                op = f"insert({k})"
+            key = rng.randint(-30, 30)
+            operation = rng.choice(("insert", "search", "delete"))
+            where = f"Прогон {run}, команда {step}: {operation}({key})"
+
+            if operation == "insert":
+                tree.insert(key)
+                etalon.add(key)
+            elif operation == "delete":
+                tree.delete(key)
+                etalon.discard(key)
             else:
-                tree.delete(k)
-                etalon.discard(k)
-                op = f"delete({k})"
-            # Инвариант BST: in-order даёт строго возрастающую последовательность ключей
+                expect_search(tree, key, key in etalon, where)
+            counts[operation] += 1
+
             got = tree.in_order()
-            expect(got == sorted(etalon), f"прогон {run}, команда №{step} {op}: "
-                                          f"in_order() = {got}, эталон {sorted(etalon)}")
-        where = f"прогон {run}, итоговое дерево"
-        for k in range(-30, 31):
-            expect_search(tree, k, k in etalon, where)
+            expect(
+                all(left < right for left, right in zip(got, got[1:])),
+                f"{where}: in_order не возрастает строго: {got}",
+            )
+            expect(
+                got == sorted(etalon),
+                f"{where}: in_order = {got}, эталон = {sorted(etalon)}",
+            )
+            check_bst_bounds(tree, where)
+
+        where = f"Прогон {run}, итоговое дерево"
+        for key in range(-30, 31):
+            expect_search(tree, key, key in etalon, where)
+
         n = len(etalon)
         got = tree.size()
-        expect(got == n, f"{where}: size() = {got}, эталон {n}")
+        expect(got == n, f"{where}: size = {got}, эталон = {n}")
+
         for name in TRAVERSALS[1:]:
             got = getattr(tree, name)()
-            expect(sorted(got) == sorted(etalon), f"{where}: {name}() содержит не те ключи: {got}")
+            expect(
+                sorted(got) == sorted(etalon),
+                f"{where}: {name} содержит неверные ключи: {got}",
+            )
+
         got = tree.height()
         low, high = (-1, -1) if n == 0 else (n.bit_length() - 1, n - 1)
-        expect(low <= got <= high,
-               f"{where}: height() = {got} при {n} узлах, возможно от {low} до {high}")
+        expect(
+            low <= got <= high,
+            f"{where}: height = {got}, допустимо от {low} до {high}",
+        )
+
+    print(f"  Случайная проверка: seed = {seed}, прогонов = {runs}")
+    for operation, total in counts.items():
+        print(f"    {operation:<6}: {total}")
+    print(f"    Всего случайных команд: {sum(counts.values())}")
+    print("  Строгое возрастание in_order: OK")
+    print("  Сверка с set/sorted: OK")
+    print("  Проверка BST через границы: OK")
 
 
 def self_check() -> None:
