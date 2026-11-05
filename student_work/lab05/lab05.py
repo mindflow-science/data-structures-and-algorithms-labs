@@ -174,17 +174,24 @@ class BST:
 
 
     def height(self) -> int:
-        """Высота дерева: число рёбер на самом длинном пути от корня.
+        """Высота в рёбрах: пустое дерево -1, один узел 0."""
 
-        Пустое дерево имеет высоту -1, дерево из одного узла — 0.
-        """
-        # TODO
-        raise NotImplementedError
+        def get_height(node: Node | None) -> int:
+            if node is None:
+                return -1
+            return 1 + max(get_height(node.left), get_height(node.right))
+
+        return get_height(self.root)
 
     def size(self) -> int:
-        """Число узлов в дереве."""
-        # TODO
-        raise NotImplementedError
+        """Подсчитать все узлы дерева."""
+
+        def count(node: Node | None) -> int:
+            if node is None:
+                return 0
+            return 1 + count(node.left) + count(node.right)
+
+        return count(self.root)
 
 
 # ---------------------------------------------------------------------------
@@ -286,16 +293,35 @@ def check_traversals() -> None:
 
 
 def check_height_size() -> None:
-    """Высота в рёбрах (пустое дерево -1, один узел 0) и число узлов."""
-    cases = [("пустое дерево", (), -1, 0), ("один узел 5", (5,), 0, 1)]
-    cases += [(f"дерево из вставок {list(keys)}", keys, answer["height"], answer["size"])
-              for keys, answer in KNOWN_TREES.items()]
-    cases.append(("ключи 1, 2, …, 50 по возрастанию (цепочка)", tuple(range(1, 51)), 49, 50))
-    for where, keys, height, size in cases:
+    """Проверить высоту и размер и вывести вычисленные значения."""
+    cases = [
+        ("Пустое дерево", (), -1, 0),
+        ("Один узел 5", (5,), 0, 1),
+    ]
+    for keys, answer in KNOWN_TREES.items():
+        cases.append((
+            f"Дерево из {len(keys)} узлов",
+            keys,
+            answer["height"],
+            answer["size"],))
+    cases.append(("Цепочка из 50 узлов", tuple(range(1, 51)), 49, 50))
+
+    print(f"  {'Случай':<25} {'Высота':>7} {'Узлы':>7}")
+    for where, keys, expected_h, expected_s in cases:
         tree = build(keys)
-        got_h, got_s = tree.height(), tree.size()
-        expect(got_h == height, f"{where}: height() = {got_h}, ожидалось {height}")
-        expect(got_s == size, f"{where}: size() = {got_s}, ожидалось {size}")
+        got_h = tree.height()
+        got_s = tree.size()
+
+        expect(
+            got_h == expected_h,
+            f"{where}: height() = {got_h}, ожидалось {expected_h}",
+        )
+        expect(
+            got_s == expected_s,
+            f"{where}: size() = {got_s}, ожидалось {expected_s}",
+        )
+
+        print(f"  {where:<25} {got_h:>7} {got_s:>7}")
 
 
 def check_delete() -> None:
