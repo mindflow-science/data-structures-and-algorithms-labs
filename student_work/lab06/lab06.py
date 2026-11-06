@@ -343,7 +343,9 @@ def run_benchmarks(seed: int) -> None:
 
     csv_path = output_dir / "benchmark.csv"
     with csv_path.open("w", encoding="utf-8", newline="") as file:
-        writer = csv.DictWriter(file, fieldnames=list(rows[0]))
+        writer = csv.DictWriter(
+            file, fieldnames=list(rows[0]), lineterminator="\n"
+        )
         writer.writeheader()
         writer.writerows(rows)
 
