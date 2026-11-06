@@ -15,9 +15,13 @@ from __future__ import annotations
 
 import argparse
 import bisect
+import csv
+import math
+import platform
 import random
 import statistics
 import time
+from pathlib import Path
 
 # ---------------------------------------------------------------------------
 # 1. Алгоритмы поиска (реализуются вручную, без in/index/bisect в основной части)
@@ -216,25 +220,136 @@ def mean_comparisons(fn, a: list[int], keys: list[int]) -> float:
     return statistics.mean(fn(a, k)[1] for k in keys)
 
 
+def plot_results(rows: list[dict], output_dir: Path) -> None:
+    """Построить графики сравнений и времени для обоих распределений."""
+    import matplotlib.pyplot as plt
+
+    plt.rcParams.update({"font.size": 12})
+    styles = {
+        "linear": ("Линейный", "C0"),
+        "binary": ("Бинарный", "C1"),
+        "interpolation": ("Интерполяционный", "C2"),
+    }
+    titles = {
+        "uniform": "Равномерное распределение",
+        "exponential": "Экспоненциальное распределение",
+    }
+
+    for distribution in titles:
+        fig_c, axes_c = plt.subplots(
+            1, 2, figsize=(11, 4.5), layout="constrained"
+        )
+        fig_t, axes_t = plt.subplots(
+            2, 2, figsize=(11, 8), layout="constrained"
+        )
+        fig_c.suptitle(titles[distribution])
+        fig_t.suptitle(titles[distribution])
+
+        for col, present in enumerate((True, False)):
+            title = "Ключ присутствует" if present else "Ключ отсутствует"
+
+            for name, _ in ALGORITHMS:
+                points = [
+                    row for row in rows
+                    if row["distribution"] == distribution
+                    and row["present"] == present
+                    and row["algorithm"] == name
+                ]
+                points.sort(key=lambda row: row["n"])
+                sizes = [row["n"] for row in points]
+                comparisons = [row["comparisons"] for row in points]
+                times = [row["time_us"] for row in points]
+                label, color = styles[name]
+
+                axes_c[col].loglog(
+                    sizes, comparisons, "o-", label=label, color=color
+                )
+                axes_t[0, col].loglog(
+                    sizes, times, "o-", label=label, color=color
+                )
+                if name != "linear":
+                    axes_t[1, col].plot(
+                        [math.log2(n) for n in sizes], times,
+                        "o-", label=label, color=color
+                    )
+
+            axes_c[col].set_title(title)
+            axes_c[col].set_xlabel("Размер массива n")
+            axes_c[col].set_ylabel("Среднее число сравнений")
+            axes_t[0, col].set_title(title)
+            axes_t[0, col].set_xlabel("Размер массива n")
+            axes_t[1, col].set_title(title + ": время от log₂(n)")
+            axes_t[1, col].set_xlabel("log₂(n)")
+            for row in range(2):
+                axes_t[row, col].set_ylabel("Время одного поиска, мкс")
+
+        for ax in [*axes_c, *axes_t.flat]:
+            ax.grid(True, which="both", alpha=0.3)
+            ax.legend(fontsize=10)
+
+        fig_c.savefig(output_dir / f"comparisons_{distribution}.png", dpi=180)
+        fig_t.savefig(output_dir / f"time_{distribution}.png", dpi=180)
+        plt.close(fig_c)
+        plt.close(fig_t)
+
+
 def run_benchmarks(seed: int) -> None:
     rng = random.Random(seed)
+    rows = []
+    output_dir = Path(__file__).resolve().parent / "results"
+    output_dir.mkdir(exist_ok=True)
+
+    cpu = platform.processor() or "не определён"
+    cpuinfo = Path("/proc/cpuinfo")
+    if cpuinfo.exists():
+        for line in cpuinfo.read_text(encoding="utf-8").splitlines():
+            if line.startswith("model name"):
+                cpu = line.split(":", 1)[1].strip()
+                break
+
+    environment = (
+        f"CPU: {cpu}\nPython: {platform.python_version()}\n"
+        f"Вариант: {seed - 30}\nSeed: {seed}\n"
+        f"Размеры: {SIZES}\nПовторы: {REPEATS}\nКлючей в серии: {N_KEYS}\n"
+        "Время: медиана времени серии / число ключей, микросекунды\n"
+    )
+    (output_dir / "environment.txt").write_text(environment, encoding="utf-8")
+    print(environment)
+
     for distribution in ("uniform", "exponential"):
-        print(f"\nРаспределение: {distribution}")
+        print(f"Распределение: {distribution}")
         for n in SIZES:
             a = make_dataset(n, distribution, rng)
             for present in (True, False):
                 keys = pick_keys(a, rng, N_KEYS, present)
-                label = "есть" if present else "нет"
                 for name, fn in ALGORITHMS:
-                    if name == "linear" and n > 30_000:
-                        continue  # линейный поиск: большие n занимают минуты
-                    print(f"  n={n:>7}  ключ {label:<4}  {name:<13}"
-                          f"  сравнений={mean_comparisons(fn, a, keys):>10.1f}"
-                          f"  t={bench(fn, a, keys):.6f} c")
-    # TODO: построить графики «среднее число сравнений от n» и «время от n»
-    # TODO: (matplotlib, отдельно для каждого распределения) и включить в отчёт;
-    # TODO: объяснить, когда интерполяционный поиск превосходит бинарный
-    # TODO: и на каких данных он деградирует к O(n).
+                    comparisons = mean_comparisons(fn, a, keys)
+                    time_us = bench(fn, a, keys) / len(keys) * 1_000_000
+                    rows.append({
+                        "distribution": distribution,
+                        "n": n,
+                        "present": present,
+                        "algorithm": name,
+                        "comparisons": comparisons,
+                        "time_us": time_us,
+                    })
+                    label = "есть" if present else "нет"
+                    print(
+                        f"n={n:>6} ключ {label:<4} {name:<13} "
+                        f"сравнений={comparisons:>10.2f} "
+                        f"время={time_us:>10.3f} мкс",
+                        flush=True,
+                    )
+
+    csv_path = output_dir / "benchmark.csv"
+    with csv_path.open("w", encoding="utf-8", newline="") as file:
+        writer = csv.DictWriter(file, fieldnames=list(rows[0]))
+        writer.writeheader()
+        writer.writerows(rows)
+
+    plot_results(rows, output_dir)
+    print(f"Сохранено строк: {len(rows)}")
+    print(f"Таблица и графики: {output_dir}")
 
 
 def main() -> None:
