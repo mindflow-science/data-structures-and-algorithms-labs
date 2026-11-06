@@ -1,0 +1,12 @@
+Вариант 16, seed = 46
+Распределение         n     min      max   есть    нет
+uniform            1000      16     9998    200    200
+uniform            3000       0    29991    200    200
+uniform           10000      14    99991    200    200
+uniform           30000      10   299995    200    200
+uniform          100000      17   999999    200    200
+exponential        1000       1     5691    200    200
+exponential        3000       0     9238    200    200
+exponential       10000       0    10667    200    200
+exponential       30000       0     9221    200    200
+exponential      100000       0    10614    200    200
